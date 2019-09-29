@@ -150,6 +150,32 @@ func process(doc *goquery.Document, f os.FileInfo, contentFolder, contentType st
 		}
 	}
 
+	// fix self links
+	// <a href="https://medium.com/@chamilad/elasticsearch-on-k8s-01-basic-design-ecfdaccbb63a" data-href="https://medium.com/@chamilad/elasticsearch-on-k8s-01-basic-design-ecfdaccbb63a" class="markup--anchor markup--li-anchor" target="_blank">
+
+	mediumUsername := "chamilad"
+	mediumBaseUrl := fmt.Sprintf("%s/@%s", "https://medium.com", mediumUsername)
+
+	//TODO: not p-author or p-canonical
+	anchors := doc.Find(".markup--anchor")
+	if anchors.Length() == 0 {
+		fmt.Fprintf(os.Stderr, "no anchors found to replace")
+	} else {
+		anchors.Each(func(i int, aDomElement *goquery.Selection) {
+			original, has := aDomElement.Attr("href")
+			if !has {
+				return
+			}
+
+			if strings.Contains(original, mediumBaseUrl) {
+				replaced := strings.TrimPrefix(original, mediumBaseUrl)
+				fmt.Fprintf(os.Stderr, "self link found: %s (%s) => %s\n\n\n", original, aDomElement.Text(), replaced)
+				aDomElement.SetAttr("href", replaced)
+				aDomElement.SetAttr("data-href", replaced)
+			}
+		})
+	}
+
 	p.Draft = strings.HasPrefix(f.Name(), "draft_")
 
 	if p.Draft == false {
