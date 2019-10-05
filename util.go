@@ -14,6 +14,8 @@ import (
 	"strings"
 )
 
+// generateSlug generates a filesystem friendly filename from a given post
+// title by removing special characters
 func generateSlug(s string) string {
 	spaces := regexp.MustCompile(`[\s]+`)
 	notallowed := regexp.MustCompile(`[^\p{L}\p{N}.\s]`)
@@ -30,6 +32,8 @@ func generateSlug(s string) string {
 	return result
 }
 
+// extractMediumImageStyle reads the image css to extract and translate the
+// medium image style to Hugo
 func extractMediumImageStyle(imgDomElement *goquery.Selection) (mediumImageStyle string) {
 	figure := imgDomElement.ParentsUntil("figure.graf").Parent()
 	imageStyles := figure.AttrOr("class", "")
@@ -49,8 +53,7 @@ func extractMediumImageStyle(imgDomElement *goquery.Selection) (mediumImageStyle
 	return
 }
 
-// downloadFile will download a url to a local file. It's efficient because it will
-// write as it downloads and not load the whole file into memory.
+// downloadFile will download a url to a local file.
 func downloadFile(url, filepath string) error {
 	// Create the file
 	out, err := os.Create(filepath)
@@ -75,24 +78,26 @@ func downloadFile(url, filepath string) error {
 	return nil
 }
 
+// fileExists checks if the given file exists
+// returns the absolute path if it does
 func fileExists(f string) (bool, string) {
-	zipFilePath, err := filepath.Abs(f)
-	if err != nil {
-		return false, ""
-	}
-	_, err = os.Stat(zipFilePath)
+	absPath, err := filepath.Abs(f)
 	if err != nil {
 		return false, ""
 	}
 
-	return true, zipFilePath
+	_, err = os.Stat(absPath)
+	if err != nil {
+		return false, ""
+	}
+
+	return true, absPath
 }
 
 // https://golangcode.com/unzip-files-in-go/
-// Unzip will decompress a zip archive, moving all files and folders
+// Unzip will decompress a zip archive, moving all files and directory
 // within the zip file (parameter 1) to an output directory (parameter 2).
 func unzipFile(src string, dest string) ([]string, error) {
-
 	var filenames []string
 	isZip, err := isZipFile(src)
 	if !isZip || err != nil {
@@ -106,7 +111,6 @@ func unzipFile(src string, dest string) ([]string, error) {
 	defer r.Close()
 
 	for _, f := range r.File {
-
 		// Store filename/path for returning and using later on
 		fpath := filepath.Join(dest, f.Name)
 
@@ -118,8 +122,11 @@ func unzipFile(src string, dest string) ([]string, error) {
 		filenames = append(filenames, fpath)
 
 		if f.FileInfo().IsDir() {
-			// Make Folder
-			os.MkdirAll(fpath, os.ModePerm)
+			err := os.MkdirAll(fpath, os.ModePerm)
+			if err != nil {
+				return nil, fmt.Errorf("couldn't extract archive: %s", err)
+			}
+
 			continue
 		}
 
@@ -141,17 +148,19 @@ func unzipFile(src string, dest string) ([]string, error) {
 		_, err = io.Copy(outFile, rc)
 
 		// Close the file without defer to close before next iteration of loop
-		outFile.Close()
-		rc.Close()
+		_ = outFile.Close()
+		_ = rc.Close()
 
 		if err != nil {
 			return filenames, err
 		}
 	}
+
 	return filenames, nil
 }
 
 // https://www.socketloop.com/tutorials/golang-how-to-tell-if-a-file-is-compressed-either-gzip-or-zip
+// isZipFile checks if the given file is of type zip by checking the mime types
 func isZipFile(f string) (bool, error) {
 	zf, err := os.Open(f)
 	if err != nil {
@@ -167,15 +176,11 @@ func isZipFile(f string) (bool, error) {
 	}
 
 	filetype := http.DetectContentType(buff)
-
-	switch filetype {
-	case "application/zip":
-		return true, nil
-	default:
-		return false, nil
-	}
+	return filetype == "application/zip", nil
 }
 
+// displayFileName accepts a string and returns either the first 40 chars or
+// the string padded up to 40 chars with spaces.
 func displayFileName(n string) string {
 	nLen := len(n)
 	if nLen < 40 {
@@ -191,30 +196,7 @@ func displayFileName(n string) string {
 	return n[0:39]
 }
 
-func printError(msg string, a ...interface{}) {
-	color.Red(msg, a)
-}
-
-func printDot() {
-	fmt.Printf(".")
-}
-
-func printRedDot() {
-	fmt.Printf(color.New(color.FgHiRed).Sprint("."))
-}
-
-func printCheckMark() {
-	fmt.Printf(color.New(color.FgHiGreen, color.Bold).Sprintf(" %c", CheckMark))
-}
-
-func printXMark(msg string, a ...interface{}) {
-	fmt.Printf(color.New(color.BgHiRed, color.FgHiWhite).Sprintf(msg, a))
-	fmt.Printf(color.New(color.FgHiRed).Sprintf(" %c", XMark))
-}
-
-var boldf = color.New(color.Bold).SprintfFunc()
-var bold = color.New(color.Bold).SprintFunc()
-
+// cleanup deletes the medium archive extract
 func cleanup(mgr *ConverterManager) {
 	if mgr == nil {
 		return
@@ -222,3 +204,43 @@ func cleanup(mgr *ConverterManager) {
 
 	_ = os.RemoveAll(mgr.InPath)
 }
+
+// functions used in output tasks ============================================
+
+// printError prints the given string formatted with the subsequent arguments
+// to the stdout in red color
+func printError(msg string, a ...interface{}) {
+	color.Red(msg, a)
+}
+
+// printDot prints a dot char to the stdout
+func printDot() {
+	fmt.Printf(".")
+}
+
+// printRedDot prints a red dot to the stdout
+func printRedDot() {
+	fmt.Printf(color.New(color.FgHiRed).Sprint("."))
+}
+
+// printCheckMark prints a unicode check mark to the stdout in green color
+func printCheckMark() {
+	fmt.Printf(color.New(color.FgHiGreen, color.Bold).Sprintf("%c", CheckMark))
+}
+
+// printXMark prints a unicode x mark to the stdout in red color
+func printXMark() {
+	fmt.Printf(color.New(color.FgHiRed, color.Bold).Sprintf("%c", XMark))
+}
+
+// printXError prints a unicode cross mark to the stdout in red
+// Used to indicate a failure of a task, the reason for failure is also
+// expected as a formattable string
+func printXError(msg string, a ...interface{}) {
+	fmt.Printf("%s ", color.New(color.BgHiRed, color.FgHiWhite).Sprintf(msg, a))
+	printXMark()
+}
+
+// functions for bolding text
+var boldf = color.New(color.Bold).SprintfFunc()
+var bold = color.New(color.Bold).SprintFunc()

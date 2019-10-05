@@ -1,20 +1,26 @@
 # Makefile
-source := *.go
+BINARY="m2h"
+TARGET="build"
+VERSION="v0.2"
 
-export GO111MODULE = on
+export GO111MODULE=on
+LDFLAGS=-ldflags "-extldflags '-static' -s -w"
 
-pre:
-	mkdir -p ./build/
+.DEFAULT_GOAL: $(BINARY)
+
+$(BINARY): clean
+	mkdir -p ${TARGET}
+	env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ${LDFLAGS} -a -o ${TARGET}/${BINARY}
+	chmod +x ${TARGET}/${BINARY}
+
+release: clean
+	mkdir -p ${TARGET}/release
+	env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ${LDFLAGS} -a -o ${TARGET}/release/${BINARY}-${VERSION}-linux-amd64
+	env CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build ${LDFLAGS} -a -o ${TARGET}/release/${BINARY}-${VERSION}-win-amd64
+	env CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build ${LDFLAGS} -a -o ${TARGET}/release/${BINARY}-${VERSION}-darwin-amd64
+	chmod -R +x ${TARGET}/release
+
+clean:
+	go clean
+	rm -rf ${TARGET}
 	go get -d ./
-
-build: pre
-	go build -o ./build/binary $(source)
-
-buildall: pre
-	mkdir -p ./build/mediumtohugo/windows
-	mkdir -p ./build/mediumtohugo/linux
-	mkdir -p ./build/mediumtohugo/macos
-	GOOS=darwin GOARCH=amd64 go build -o ./build/mediumtohugo/macos/mediumtohugo $(source)
-	GOOS=linux GOARCH=amd64 go build -o ./build/mediumtohugo/linux/mediumtohugo $(source)
-	GOOS=windows GOARCH=amd64 go build -o  ./build/mediumtohugo/windows/mediumtohugo.exe $(source)
-	cd ./build && tar -czf ./mediumtohugo.tar.gz ./mediumtohugo/

@@ -1,4 +1,4 @@
-module github.com/bgadrian/medium-to-hugo
+module github.com/chamilad/medium-to-hugo
 
 require (
 	github.com/PuerkitoBio/goquery v1.5.0

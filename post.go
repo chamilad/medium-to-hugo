@@ -57,10 +57,10 @@ func (p *Post) PruneMediumSpecifics() {
 	})
 }
 
+// NewImage creates an Image struct based on the given DOM element
 func (p *Post) NewImage(dom *goquery.Selection, i int) (*Image, error) {
 	imgSrc, exists := dom.Attr("src")
 	if !exists {
-		//fmt.Print("warning img no src\n")
 		return nil, errors.New("invalid img def, no src found")
 	}
 
@@ -71,33 +71,36 @@ func (p *Post) NewImage(dom *goquery.Selection, i int) (*Image, error) {
 
 	fileNamePrefix, err := p.GetFileNamePrefix()
 	if err != nil {
-		//fmt.Fprintf(os.Stderr, "error while reading imgFilename: %s", p.MdFilename)
 		return nil, err
 	}
 
 	imgFilename := fmt.Sprintf("%s_%d%s", fileNamePrefix, i, ext)
-	//fmt.Fprintf(os.Stderr, "image name: %s", imgFilename)
-
-	img := &Image{MediumURL: imgSrc, FileName: imgFilename}
+	img := &Image{
+		MediumURL: imgSrc,
+		FileName:  imgFilename,
+	}
 
 	// all successful, attach a reference
 	p.Images = append(p.Images, img)
-
 	return img, nil
 }
 
+// GetFileNamePrefix returns just the markdown filename without the extension
+// of a given Post. This can be used for naming related artifacts.
 func (p *Post) GetFileNamePrefix() (string, error) {
 	if len(strings.TrimSpace(p.MdFilename)) == 0 {
-		return "", errors.New("empty filename")
+		return "", fmt.Errorf("empty filename")
 	}
 
 	if filepath.Ext(p.MdFilename) != MarkdownFileExtension {
-		return "", errors.New(fmt.Sprintf("invalid filename set: %s", p.MdFilename))
+		return "", fmt.Errorf("invalid filename set: %s", p.MdFilename)
 	}
 
 	return strings.TrimSuffix(p.MdFilename, MarkdownFileExtension), nil
 }
 
+// SetCanonicalName finds the url of the given Post and extracts the medium url
+// to be added as an Alias in Hugo FrontMatter
 func (p *Post) SetCanonicalName() {
 	canonical := p.DOM.Find(".p-canonical")
 	if canonical != nil {
@@ -114,9 +117,10 @@ func (p *Post) SetCanonicalName() {
 	}
 }
 
+// FixSelfLinks searches for links in the page that refers to other posts by
+// the same author (provided username) and changes them to point to local
+// relative URLs so that they will point to the Hugo hosted pages
 func (p *Post) FixSelfLinks(username string) error {
-	//mediumUsername := "chamilad"
-
 	username = strings.TrimSpace(username)
 	if len(username) == 0 {
 		return fmt.Errorf("invalid username")
@@ -134,7 +138,6 @@ func (p *Post) FixSelfLinks(username string) error {
 
 			if strings.Contains(original, mediumBaseUrl) {
 				replaced := strings.TrimPrefix(original, mediumBaseUrl)
-				//fmt.Fprintf(os.Stderr, "self link found: %s (%s) => %s\n\n\n", original, aDomElement.Text(), replaced)
 				aDomElement.SetAttr("href", replaced)
 				aDomElement.SetAttr("data-href", replaced)
 			}
@@ -144,17 +147,19 @@ func (p *Post) FixSelfLinks(username string) error {
 	return nil
 }
 
+// PopulateTags will collect the medium tags of the post by downloading the
+// page and reading the tag values directly. This can only be done to published
+// posts so drafts will be ignored.
 func (p *Post) PopulateTags() error {
 	if p.Draft {
-		//_, _ = fmt.Fprintf(os.Stderr, "not getting tags for draft: %s\n", p.Title)
 		return nil
 	}
 
-	//TODO make a custom client with a small timeout!
 	skipTLS := strings.ToLower(os.Getenv("ALLOW_INSECURE")) == "true"
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: skipTLS},
 	}
+
 	client := &http.Client{Transport: tr}
 
 	res, err := client.Get(p.FullURL)
@@ -179,9 +184,9 @@ func (p *Post) PopulateTags() error {
 	return nil
 }
 
+// GenerateMarkdown generates the markdown text from HTML for a given Post.
+// The resulting markdown text is assign to the Body variable
 func (p *Post) GenerateMarkdown() error {
-	//fmt.Printf("Generating markdown %s => %s\n", p.HTMLFileName, p.MdFilename)
-
 	body := ""
 	p.DOM.Find("div.section-inner").Each(func(i int, s *goquery.Selection) {
 		h, _ := s.Html()

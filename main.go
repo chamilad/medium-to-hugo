@@ -1,5 +1,8 @@
 // A quick script for converting Medium HTML files to Markdown, suitable for use in a static file generator such as Hugo or Jekyll
 //A fork of https://gist.github.com/clipperhouse/010d4666892807afee16ba7711b41401
+//
+// Fork of https://github.com/bgadrian/medium-to-hugo improved for personal preferences
+//
 package main
 
 import (
@@ -18,11 +21,11 @@ import (
 )
 
 const (
-	XMark                 = '\u2718'
-	CheckMark             = '\u2713'
-	HContentType          = "post" // Hugo Content Type, only post is supported
-	HImagesDirName        = "img"
-	MarkdownFileExtension = ".md"
+	XMark                 = '\u2718' // unicode char to use for failures
+	CheckMark             = '\u2713' // unicode char to use for success
+	HContentType          = "post"   // Hugo Content Type, only post is supported
+	HImagesDirName        = "img"    // directory where the images will be downloaded to
+	MarkdownFileExtension = ".md"    // file extension of the Markdown files
 	DraftPrefix           = "draft_"
 
 	PostTemplate = `---
@@ -51,17 +54,26 @@ aliases:
 `
 )
 
-// TODO:
-//   2. figure out username from medium extract - profile/profile.html .u-url
-//   3. flag to create subfolders for posts
-
+// A ConverterManager is a structure to collect the details regarding
+// the conversion job.
 type ConverterManager struct {
-	InPath, MediumPostsPath, OutputPath, PostsPath, ImagesPath string
+	// The path that the export archive will be extracted to
+	InPath          string
+	MediumPostsPath string // InPath/posts
+
+	// The path the converted markdown files and images will be created in
+	OutputPath string
+	PostsPath  string // OutputPath/post
+	ImagesPath string // OutputPath/post/images
+
+	// Ignore empty articles
+	IgnoreEmpty bool
 }
 
 func main() {
 	// define input flags
 	zipF := flag.String("f", "medium-export.zip", "the medium-export.zip file from Medium")
+	ignoreEmpty := flag.Bool("e", false, "ignore empty articles")
 	flag.Parse()
 
 	// sanitize and validate input
@@ -71,13 +83,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	mgr, err := newConverterManager(zipFilePath)
+	// extract archive and prep for reading
+	mgr, err := newConverterManager(zipFilePath, *ignoreEmpty)
 	if err != nil {
 		printError("error while setting up converter: %s", err)
 		cleanup(mgr)
 		os.Exit(1)
 	}
 
+	// open all the html files for parsing
 	files, err := mgr.ReadPosts()
 	if err != nil {
 		printError("error while reading posts: %s", err)
@@ -86,6 +100,7 @@ func main() {
 	}
 
 	fmt.Printf("Posts to process: \t%s\n", boldf("%d", len(files)))
+
 	username, err := mgr.GetMediumUserName()
 	if err != nil {
 		printError("couldn't read username from archive, self links will not be fixed: %s", err)
@@ -93,20 +108,29 @@ func main() {
 		fmt.Printf("Medium username: \t%s\n", bold(username))
 	}
 
+	fmt.Print("Ignore empty articles: \t",)
+	if mgr.IgnoreEmpty {
+		printCheckMark()
+	} else {
+		printXMark()
+	}
+
 	fmt.Println()
 
+	// count failures
 	ignoreList := make([]string, 0)
 	errorList := make([]string, 0)
 	successCount := 0
 
 	// iterate each html file and generate md
 	for i, f := range files {
-		fmt.Printf("\n\t%s: %s => ", boldf("%02d", i+1), displayFileName(f.Name()))
+		fmt.Printf("\n\t%s: %s => ", boldf("%3d", i+1), displayFileName(f.Name()))
 
+		// if the file is not an html file, ignore
 		if !strings.HasSuffix(f.Name(), ".html") || f.IsDir() {
-			//fmt.Printf("Ignoring (ext) %s\n", f.Name())
 			ignoreList = append(ignoreList, f.Name())
-			printXMark("ignored")
+			fmt.Printf("%s ", color.New(color.FgRed).Sprint("ignored, extension"))
+			printXMark()
 			continue
 		}
 
@@ -115,9 +139,8 @@ func main() {
 		fpath := filepath.Join(mgr.MediumPostsPath, f.Name())
 		post, err := newPost(fpath)
 		if err != nil {
-			printXMark("reading input => %s", err)
+			printXError("reading input => %s", err)
 			errorList = append(errorList, f.Name())
-			//printError("error while reading html file: %s => %s", f.Name(), err)
 			continue
 		}
 
@@ -169,44 +192,59 @@ func main() {
 			printDot()
 		}
 
+		// determine markdown filename
+
+		// 1. filename prefix, usually <date>_
 		//datetime ISO 2018-09-25T14:13:46.823Z
 		//we only keep the date for simplicity
 		createdDate := strings.Split(post.Date, "T")[0]
 		prefix := createdDate
 
+		// drafts get "draft_" as the prefix
 		if post.Draft {
 			prefix = DraftPrefix
 		}
 		printDot()
 
+		// 2. clean up the title
 		slug := generateSlug(post.Title)
 		printDot()
+
+		// 3. collect them to the filename - done
 		post.MdFilename = prefix + "_" + slug + MarkdownFileExtension
 		printDot()
 
+		// download images
 		mgr.ProcessImages(post)
 		printDot()
 
+		// all done, generate the markdown
 		err = post.GenerateMarkdown()
 		if err != nil {
-			printXMark("generating md => %s", err)
+			printXError("generating md => %s", err)
 			errorList = append(errorList, f.Name())
-			//fmt.Printf("error while generating markdown: %s => %s\n", post.MdFilename, err)
 			continue
 		}
 		printDot()
 
-		err = mgr.Write(post)
+		written, err := mgr.Write(post)
 		if err != nil {
-			printXMark("writing output => %s", err)
+			printXError("writing output => %s", err)
 			errorList = append(errorList, f.Name())
-			//_, _ = fmt.Fprintf(os.Stderr, "error while writing file: %s => %s\n", post.MdFilename, err)
 			continue
 		}
-		printDot()
 
-		successCount++
-		printCheckMark()
+		// check if an empty body
+		if !written {
+			ignoreList = append(ignoreList, f.Name())
+			fmt.Printf("%s ", color.New(color.FgRed).Sprint("ignored, empty body"))
+			printXMark()
+		} else {
+			printDot()
+			successCount++
+			fmt.Print(" ")
+			printCheckMark()
+		}
 	}
 
 	fmt.Println()
@@ -236,8 +274,13 @@ func main() {
 	cleanup(mgr)
 }
 
-func newConverterManager(archive string) (*ConverterManager, error) {
-	// build the output path value
+// newConverterManager will create the necessary directories, and extract the
+// provided medium export archive in to the InPath
+//
+// Returns a pointer to the ConverterManager struct, if any failures occur
+// during the process, the error will be returned
+func newConverterManager(archive string, ignoreEmpty bool) (*ConverterManager, error) {
+	// build dir path values
 	pwd, err := os.Getwd()
 	if err != nil {
 		return nil, err
@@ -250,8 +293,8 @@ func newConverterManager(archive string) (*ConverterManager, error) {
 	oIn := filepath.Join(oRoot, "in")
 	oOut := filepath.Join(oRoot, "out")
 
-	// create the folders
-	// 1. root and output folders
+	// create the directories
+	// 1. root and output directories
 	err = os.MkdirAll(oRoot, os.ModePerm)
 	if err != nil {
 		return nil, err
@@ -265,7 +308,7 @@ func newConverterManager(archive string) (*ConverterManager, error) {
 	postsPath := filepath.Join(oOut, HContentType)
 	imagesPath := filepath.Join(postsPath, HImagesDirName)
 
-	// 2. input folder, unzip will create and extract contents
+	// 2. input dir, unzip will create and extract contents
 	files, err := unzipFile(archive, oIn)
 	if err != nil || len(files) == 0 {
 		return nil, fmt.Errorf("couldn't extract archive: %s => %s", archive, err)
@@ -282,11 +325,18 @@ func newConverterManager(archive string) (*ConverterManager, error) {
 		MediumPostsPath: mediumPosts,
 		OutputPath:      oOut,
 		PostsPath:       postsPath,
-		ImagesPath:      imagesPath}
+		ImagesPath:      imagesPath,
+		IgnoreEmpty:     ignoreEmpty,
+	}
 
 	return mgr, nil
 }
 
+// newPost reads a given file and parses the details in to a Post struct.
+// The HTML content of the file is also loaded as a queryable reference
+// Basic details are extracted from the resulting DOM
+//
+// If the file cannot be read an error will be returned
 func newPost(fullPath string) (*Post, error) {
 	f, err := os.Open(fullPath)
 	if err != nil {
@@ -298,16 +348,16 @@ func newPost(fullPath string) (*Post, error) {
 	// Load the HTML document
 	dom, err := goquery.NewDocumentFromReader(f)
 	if err != nil {
-		//_, _ = fmt.Fprintf(os.Stderr, "error while parsing source HTML: %s => %s", f.Name(), err)
 		return nil, err
 	}
 
-	p := &Post{}
-	p.DOM = dom
-	p.HTMLFileName = filepath.Base(f.Name())
-	p.Images = make([]*Image, 0)
-	p.Tags = make([]string, 0)
-	p.Lastmod = time.Now().Format(time.RFC3339)
+	p := &Post{
+		DOM:          dom,
+		HTMLFileName: filepath.Base(f.Name()),
+		Images:       make([]*Image, 0),
+		Tags:         make([]string, 0),
+		Lastmod:      time.Now().Format(time.RFC3339),
+	}
 
 	// draft is prefixed in filename
 	p.Draft = strings.HasPrefix(p.HTMLFileName, DraftPrefix)
@@ -315,6 +365,10 @@ func newPost(fullPath string) (*Post, error) {
 	return p, nil
 }
 
+// GetMediumUserName reads the profile.html file in the extracted medium
+// export and extracts the medium username. If an error occur while
+// reading the file or the specific element containing the username cannot
+// be found, an error will be returned.
 func (mgr *ConverterManager) GetMediumUserName() (string, error) {
 	//profile/profile.html .u-url
 	profileFile := filepath.Join(mgr.InPath, "profile", "profile.html")
@@ -343,8 +397,10 @@ func (mgr *ConverterManager) GetMediumUserName() (string, error) {
 	return strings.TrimPrefix(uurlSelection.First().Text(), "@"), nil
 }
 
+// ReadPosts returns a list of FileInfo objects from the extracted medium
+// export archive's posts directory. If the files cannot be traversed an
+// error will be returned
 func (mgr *ConverterManager) ReadPosts() ([]os.FileInfo, error) {
-	// readFile the files inside medium export posts folder
 	files, err := ioutil.ReadDir(mgr.MediumPostsPath)
 	if err != nil {
 		return nil, err
@@ -353,12 +409,13 @@ func (mgr *ConverterManager) ReadPosts() ([]os.FileInfo, error) {
 	return files, nil
 }
 
+// DownloadImage downloads a given image to the images directory
 func (mgr *ConverterManager) DownloadImage(i *Image) error {
+	// check if the images directory exists, create if not
 	_, err := os.Stat(mgr.ImagesPath)
 	if err != nil {
 		err = os.MkdirAll(mgr.ImagesPath, os.ModePerm)
 		if err != nil {
-			//_, _ = fmt.Fprintf(os.Stderr, "couldn't create image dir: %s\n", mgr.ImagesPath)
 			return err
 		}
 	}
@@ -366,19 +423,27 @@ func (mgr *ConverterManager) DownloadImage(i *Image) error {
 	destPath := filepath.Join(mgr.ImagesPath, i.FileName)
 	err = downloadFile(i.MediumURL, destPath)
 	if err != nil {
-		//fmt.Printf("couldn't download image: %s\n", err)
 		return err
 	}
 
 	return nil
 }
 
-func (mgr *ConverterManager) Write(p *Post) error {
+// Write renders and writes the resulting content into the final markdown file
+// inside the output path.
+// Returns true if a file was written, false if ignored, error if any errors
+// occur
+func (mgr *ConverterManager) Write(p *Post) (bool, error) {
+	if len(p.Body) == 0 && mgr.IgnoreEmpty {
+		return false, nil
+	}
+
+	// check if posts path exists, create if not
 	_, err := os.Stat(mgr.PostsPath)
 	if err != nil {
 		err = os.MkdirAll(mgr.PostsPath, os.ModePerm)
 		if err != nil {
-			return err
+			return false, err
 		}
 	}
 
@@ -392,32 +457,30 @@ func (mgr *ConverterManager) Write(p *Post) error {
 	tmpl := template.Must(template.New("").Parse(PostTemplate))
 	err = tmpl.Execute(f, p)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return nil
+	return true, nil
 }
 
+// ProcessImages reads a give Post for img elements, downloads them to a
+// directory, and changes the src values to point to the downloaded
+// location
 func (mgr *ConverterManager) ProcessImages(p *Post) {
 	images := p.DOM.Find("img")
 	printDot()
 
 	if images.Length() == 0 {
-		//fmt.Fprintf(os.Stderr, "no images found in the post: %s\n", p.Title)
-
 		return
 	}
 
-	//fmt.Fprintf(os.Stderr, "found %d images: %s", images.Length(), p.Title)
-
 	p.Images = make([]*Image, 0)
 
+	// iterate img elements and process them
 	images.Each(func(i int, imgDomElement *goquery.Selection) {
-
 		img, err := p.NewImage(imgDomElement, i)
 		if err != nil {
 			printRedDot()
-			//fmt.Fprintf(os.Stderr, "error while reading img element: %s", err)
 			return
 		}
 		printDot()
@@ -434,13 +497,14 @@ func (mgr *ConverterManager) ProcessImages(p *Post) {
 		imgDomElement.SetAttr("src", imageSrcAttr)
 		printDot()
 
+		// if the image is the featured image, mark it down
 		if _, isFeatured := imgDomElement.Attr("data-is-featured"); isFeatured {
 			p.FeaturedImage = img.GetHugoSource()
 		}
 		printDot()
 	})
 
-	//fallback, the featured image is the first one
+	// if no images were marked as featured, get the first image
 	if len(p.FeaturedImage) == 0 && len(p.Images) > 0 {
 		p.FeaturedImage = p.Images[0].GetHugoSource()
 	}
