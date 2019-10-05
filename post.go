@@ -114,9 +114,15 @@ func (p *Post) SetCanonicalName() {
 	}
 }
 
-func (p *Post) FixSelfLinks() {
-	mediumUsername := "chamilad"
-	mediumBaseUrl := fmt.Sprintf("%s/@%s", "https://medium.com", mediumUsername)
+func (p *Post) FixSelfLinks(username string) error {
+	//mediumUsername := "chamilad"
+
+	username = strings.TrimSpace(username)
+	if len(username) == 0 {
+		return fmt.Errorf("invalid username")
+	}
+
+	mediumBaseUrl := fmt.Sprintf("%s/@%s", "https://medium.com", username)
 
 	anchors := p.DOM.Find(".markup--anchor")
 	if anchors.Length() != 0 {
@@ -134,6 +140,8 @@ func (p *Post) FixSelfLinks() {
 			}
 		})
 	}
+
+	return nil
 }
 
 func (p *Post) PopulateTags() error {

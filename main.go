@@ -85,7 +85,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("%s posts to process\n\n", boldf("%d", len(files)))
+	fmt.Printf("Posts to process: \t%s\n", boldf("%d", len(files)))
+	username, err := mgr.GetMediumUserName()
+	if err != nil {
+		printError("couldn't read username from archive, self links will not be fixed: %s", err)
+	} else {
+		fmt.Printf("Medium username: \t%s\n", bold(username))
+	}
+
+	fmt.Println()
 
 	ignoreList := make([]string, 0)
 	errorList := make([]string, 0)
@@ -146,14 +154,20 @@ func main() {
 
 		post.SetCanonicalName()
 		printDot()
-		post.FixSelfLinks()
-		printDot()
+
+		err = post.FixSelfLinks(username)
+		if err != nil {
+			printRedDot()
+		} else {
+			printDot()
+		}
 
 		err = post.PopulateTags()
 		if err != nil {
 			printRedDot()
+		} else {
+			printDot()
 		}
-		printDot()
 
 		//datetime ISO 2018-09-25T14:13:46.823Z
 		//we only keep the date for simplicity
@@ -216,7 +230,7 @@ func main() {
 	fmt.Println()
 	fmt.Printf("%s posts successfully converted to Hugo compatible Markdown\n", bold(successCount))
 
-	fmt.Printf("Output: %s", color.New(color.FgGreen, color.Bold).Sprint(mgr.PostsPath))
+	fmt.Printf("Output: %s", color.New(color.FgGreen, color.Bold).Sprint(mgr.OutputPath))
 	fmt.Println()
 	fmt.Println()
 	cleanup(mgr)
@@ -264,7 +278,7 @@ func newConverterManager(archive string) (*ConverterManager, error) {
 	}
 
 	mgr := &ConverterManager{
-		InPath: oIn,
+		InPath:          oIn,
 		MediumPostsPath: mediumPosts,
 		OutputPath:      oOut,
 		PostsPath:       postsPath,
@@ -299,6 +313,34 @@ func newPost(fullPath string) (*Post, error) {
 	p.Draft = strings.HasPrefix(p.HTMLFileName, DraftPrefix)
 
 	return p, nil
+}
+
+func (mgr *ConverterManager) GetMediumUserName() (string, error) {
+	//profile/profile.html .u-url
+	profileFile := filepath.Join(mgr.InPath, "profile", "profile.html")
+	_, err := os.Stat(profileFile)
+	if err != nil {
+		return "", err
+	}
+
+	f, err := os.Open(profileFile)
+	if err != nil {
+		return "", err
+	}
+
+	defer f.Close()
+
+	dom, err := goquery.NewDocumentFromReader(f)
+	if err != nil {
+		return "", err
+	}
+
+	uurlSelection := dom.Find(".u-url")
+	if uurlSelection.Length() == 0 {
+		return "", fmt.Errorf("couldn't find a username section")
+	}
+
+	return strings.TrimPrefix(uurlSelection.First().Text(), "@"), nil
 }
 
 func (mgr *ConverterManager) ReadPosts() ([]os.FileInfo, error) {
