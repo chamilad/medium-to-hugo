@@ -18,6 +18,8 @@ import (
 )
 
 const (
+	XMark                 = '\u2718'
+	CheckMark             = '\u2713'
 	HContentType          = "post" // Hugo Content Type, only post is supported
 	HImagesDirName        = "img"
 	MarkdownFileExtension = ".md"
@@ -50,12 +52,11 @@ aliases:
 )
 
 // TODO:
-//   1. input medium export zip, not extracted path
 //   2. figure out username from medium extract - profile/profile.html .u-url
 //   3. flag to create subfolders for posts
 
 type ConverterManager struct {
-	MediumPostsPath, OutputPath, PostsPath, ImagesPath string
+	InPath, MediumPostsPath, OutputPath, PostsPath, ImagesPath string
 }
 
 func main() {
@@ -64,68 +65,95 @@ func main() {
 	flag.Parse()
 
 	// sanitize and validate input
-	exists, zipFilePath := fileExists(zipF)
+	exists, zipFilePath := fileExists(*zipF)
 	if !exists {
-		printError("couldn't read give medium extract archive: %s\n", zipFilePath)
+		printError("couldn't find medium-export.zip: %s", zipFilePath)
 		os.Exit(1)
 	}
 
-	mgr := newConverterManager(zipFilePath)
-	mgr.CreateOutputDirs()
-	files := mgr.ReadPosts()
+	mgr, err := newConverterManager(zipFilePath)
+	if err != nil {
+		printError("error while setting up converter: %s", err)
+		cleanup(mgr)
+		os.Exit(1)
+	}
 
-	color.Green("Found %d articles.", len(files))
-	//fmt.Printf("Found %d articles.\n", len(files))
+	files, err := mgr.ReadPosts()
+	if err != nil {
+		printError("error while reading posts: %s", err)
+		cleanup(mgr)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%s posts to process\n\n", boldf("%d", len(files)))
+
+	ignoreList := make([]string, 0)
+	errorList := make([]string, 0)
+	successCount := 0
 
 	// iterate each html file and generate md
-	for _, f := range files {
+	for i, f := range files {
+		fmt.Printf("\n\t%s: %s => ", boldf("%02d", i+1), displayFileName(f.Name()))
+
 		if !strings.HasSuffix(f.Name(), ".html") || f.IsDir() {
 			//fmt.Printf("Ignoring (ext) %s\n", f.Name())
+			ignoreList = append(ignoreList, f.Name())
+			printXMark("ignored")
 			continue
 		}
+
+		printDot()
 
 		fpath := filepath.Join(mgr.MediumPostsPath, f.Name())
-		_, err := os.Stat(fpath)
+		post, err := newPost(fpath)
 		if err != nil {
-			printError("couldn't read html file: %s => %s", f.Name(), err)
+			printXMark("reading input => %s", err)
+			errorList = append(errorList, f.Name())
+			//printError("error while reading html file: %s => %s", f.Name(), err)
 			continue
 		}
 
-		post, err := newPost(fpath)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "error while reading html file: %s => %s\n", f.Name(), err)
-			continue
-		}
+		printDot()
 
 		// cleanup unwanted elements
 		post.PruneMediumSpecifics()
 
+		printDot()
+
 		// query dom for interesting values
 		post.Date, _ = post.DOM.Find("time").Attr("datetime")
+		printDot()
 		post.Author = post.DOM.Find(".p-author.h-card").Text()
+		printDot()
 		post.Title = strings.TrimSpace(post.DOM.Find("title").Text())
 		// if title is empty, name it with a random string
 		if len(post.Title) == 0 {
 			post.Title = fmt.Sprintf("untitled_%s", uuid.New().String())
 		}
+		printDot()
 
 		subtitle := post.DOM.Find(".p-summary[data-field='subtitle']")
 		if subtitle != nil {
 			post.Subtitle = strings.TrimSpace(subtitle.Text())
 		}
+		printDot()
 
 		desc := post.DOM.Find(".p-summary[data-field='description']")
 		if desc != nil {
 			post.Description = strings.TrimSpace(desc.Text())
 		}
+		printDot()
 
 		post.SetCanonicalName()
+		printDot()
 		post.FixSelfLinks()
+		printDot()
 
 		err = post.PopulateTags()
 		if err != nil {
-			fmt.Printf("error while collecting tags: %s\n", err)
+			printRedDot()
 		}
+		printDot()
 
 		//datetime ISO 2018-09-25T14:13:46.823Z
 		//we only keep the date for simplicity
@@ -135,66 +163,118 @@ func main() {
 		if post.Draft {
 			prefix = DraftPrefix
 		}
+		printDot()
 
 		slug := generateSlug(post.Title)
+		printDot()
 		post.MdFilename = prefix + "_" + slug + MarkdownFileExtension
+		printDot()
 
 		mgr.ProcessImages(post)
+		printDot()
 
 		err = post.GenerateMarkdown()
 		if err != nil {
-			fmt.Printf("error while generating markdown: %s => %s\n", post.MdFilename, err)
+			printXMark("generating md => %s", err)
+			errorList = append(errorList, f.Name())
+			//fmt.Printf("error while generating markdown: %s => %s\n", post.MdFilename, err)
 			continue
 		}
+		printDot()
 
 		err = mgr.Write(post)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "error while writing file: %s => %s\n", post.MdFilename, err)
+			printXMark("writing output => %s", err)
+			errorList = append(errorList, f.Name())
+			//_, _ = fmt.Fprintf(os.Stderr, "error while writing file: %s => %s\n", post.MdFilename, err)
 			continue
 		}
+		printDot()
+
+		successCount++
+		printCheckMark()
 	}
+
+	fmt.Println()
+	fmt.Println()
+
+	if len(ignoreList) > 0 {
+		color.Yellow("\n\nThe following files inside posts directory were ignored:")
+		for i, ignored := range ignoreList {
+			fmt.Printf("%02d: %s\n", i+1, ignored)
+		}
+	}
+
+	if len(errorList) > 0 {
+		color.Red("The following files encountered errors while processing")
+		for i, errored := range errorList {
+			fmt.Printf("%02d: %s\n", i+1, errored)
+		}
+	}
+
+	fmt.Println()
+	fmt.Println()
+	fmt.Printf("%s posts successfully converted to Hugo compatible Markdown\n", bold(successCount))
+
+	fmt.Printf("Output: %s", color.New(color.FgGreen, color.Bold).Sprint(mgr.PostsPath))
+	fmt.Println()
+	fmt.Println()
+	cleanup(mgr)
 }
 
-func newConverterManager(archive string) *ConverterManager {
+func newConverterManager(archive string) (*ConverterManager, error) {
 	// build the output path value
 	pwd, err := os.Getwd()
 	if err != nil {
-		printError("error while reading cwd: %s\n", err)
-		panic(err)
+		return nil, err
 	}
 
 	t := time.Now()
-	tmpPath := os.TempDir()
-	tmpIn := filepath.Join(tmpPath,
-		fmt.Sprintf("m2h_tmp-%d%02d%02d_%02d%02d", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute()))
-
-	files, err := unzipFile(archive, tmpIn)
-	if err != nil || len(files) == 0 {
-		printError("invalid archive: %s\n", archive)
-	}
-
-	mediumPosts := filepath.Join(tmpIn, "posts")
-
-	exists, _ := fileExists(&mediumPosts)
-	if !exists {
-		printError("couldn't find posts content in the medium extract archive: %s", tmpIn)
-		return nil
-	}
-
-	o := filepath.Join(
+	oRoot := filepath.Join(
 		pwd,
-		"m2h_out",
-		fmt.Sprintf("md-%d%02d%02d_%02d%02d", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute()))
+		fmt.Sprintf("medium-to-hugo_%d%02d%02d_%02d%02d", t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute()))
+	oIn := filepath.Join(oRoot, "in")
+	oOut := filepath.Join(oRoot, "out")
 
-	postsPath := filepath.Join(o, HContentType)
+	// create the folders
+	// 1. root and output folders
+	err = os.MkdirAll(oRoot, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	err = os.MkdirAll(oOut, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	postsPath := filepath.Join(oOut, HContentType)
 	imagesPath := filepath.Join(postsPath, HImagesDirName)
-	mgr := &ConverterManager{MediumPostsPath: mediumPosts, OutputPath: o, PostsPath: postsPath, ImagesPath: imagesPath}
-	return mgr
 
+	// 2. input folder, unzip will create and extract contents
+	files, err := unzipFile(archive, oIn)
+	if err != nil || len(files) == 0 {
+		return nil, fmt.Errorf("couldn't extract archive: %s => %s", archive, err)
+	}
+
+	mediumPosts := filepath.Join(oIn, "posts")
+	exists, _ := fileExists(mediumPosts)
+	if !exists {
+		return nil, fmt.Errorf("couldn't find posts content in the medium extract archive: %s", oIn)
+	}
+
+	mgr := &ConverterManager{
+		InPath: oIn,
+		MediumPostsPath: mediumPosts,
+		OutputPath:      oOut,
+		PostsPath:       postsPath,
+		ImagesPath:      imagesPath}
+
+	return mgr, nil
 }
 
-func newPost(filepath string) (*Post, error) {
-	f, err := os.Open(filepath)
+func newPost(fullPath string) (*Post, error) {
+	f, err := os.Open(fullPath)
 	if err != nil {
 		return nil, err
 	}
@@ -204,13 +284,13 @@ func newPost(filepath string) (*Post, error) {
 	// Load the HTML document
 	dom, err := goquery.NewDocumentFromReader(f)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "error while parsing source HTML: %s => %s", f.Name(), err)
+		//_, _ = fmt.Fprintf(os.Stderr, "error while parsing source HTML: %s => %s", f.Name(), err)
 		return nil, err
 	}
 
 	p := &Post{}
 	p.DOM = dom
-	p.HTMLFileName = f.Name()
+	p.HTMLFileName = filepath.Base(f.Name())
 	p.Images = make([]*Image, 0)
 	p.Tags = make([]string, 0)
 	p.Lastmod = time.Now().Format(time.RFC3339)
@@ -221,21 +301,14 @@ func newPost(filepath string) (*Post, error) {
 	return p, nil
 }
 
-func (mgr *ConverterManager) ReadPosts() []os.FileInfo {
+func (mgr *ConverterManager) ReadPosts() ([]os.FileInfo, error) {
 	// readFile the files inside medium export posts folder
 	files, err := ioutil.ReadDir(mgr.MediumPostsPath)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return files
-}
-
-func (mgr *ConverterManager) CreateOutputDirs() {
-	err := os.MkdirAll(mgr.OutputPath, os.ModePerm)
-	if err != nil {
-		panic(err)
-	}
+	return files, nil
 }
 
 func (mgr *ConverterManager) DownloadImage(i *Image) error {
@@ -243,7 +316,7 @@ func (mgr *ConverterManager) DownloadImage(i *Image) error {
 	if err != nil {
 		err = os.MkdirAll(mgr.ImagesPath, os.ModePerm)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "couldn't create image dir: %s\n", mgr.ImagesPath)
+			//_, _ = fmt.Fprintf(os.Stderr, "couldn't create image dir: %s\n", mgr.ImagesPath)
 			return err
 		}
 	}
@@ -251,7 +324,7 @@ func (mgr *ConverterManager) DownloadImage(i *Image) error {
 	destPath := filepath.Join(mgr.ImagesPath, i.FileName)
 	err = downloadFile(i.MediumURL, destPath)
 	if err != nil {
-		fmt.Printf("couldn't download image: %s\n", err)
+		//fmt.Printf("couldn't download image: %s\n", err)
 		return err
 	}
 
@@ -285,12 +358,15 @@ func (mgr *ConverterManager) Write(p *Post) error {
 
 func (mgr *ConverterManager) ProcessImages(p *Post) {
 	images := p.DOM.Find("img")
+	printDot()
+
 	if images.Length() == 0 {
-		fmt.Fprintf(os.Stderr, "no images found in the post: %s\n", p.Title)
+		//fmt.Fprintf(os.Stderr, "no images found in the post: %s\n", p.Title)
+
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "found %d images: %s", images.Length(), p.Title)
+	//fmt.Fprintf(os.Stderr, "found %d images: %s", images.Length(), p.Title)
 
 	p.Images = make([]*Image, 0)
 
@@ -298,25 +374,35 @@ func (mgr *ConverterManager) ProcessImages(p *Post) {
 
 		img, err := p.NewImage(imgDomElement, i)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error while reading img element: %s", err)
+			printRedDot()
+			//fmt.Fprintf(os.Stderr, "error while reading img element: %s", err)
 			return
 		}
+		printDot()
 
-		mgr.DownloadImage(img)
+		err = mgr.DownloadImage(img)
+		if err != nil {
+			printRedDot()
+			return
+		}
+		printDot()
 
 		// the suffix after # is useful for styling the image in a way similar to what medium does
 		imageSrcAttr := fmt.Sprintf("%s#%s", img.GetHugoSource(), extractMediumImageStyle(imgDomElement))
 		imgDomElement.SetAttr("src", imageSrcAttr)
+		printDot()
 
 		if _, isFeatured := imgDomElement.Attr("data-is-featured"); isFeatured {
 			p.FeaturedImage = img.GetHugoSource()
 		}
+		printDot()
 	})
 
 	//fallback, the featured image is the first one
 	if len(p.FeaturedImage) == 0 && len(p.Images) > 0 {
 		p.FeaturedImage = p.Images[0].GetHugoSource()
 	}
+	printDot()
 
 	return
 }

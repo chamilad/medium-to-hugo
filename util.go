@@ -75,8 +75,8 @@ func downloadFile(url, filepath string) error {
 	return nil
 }
 
-func fileExists(f *string) (bool, string) {
-	zipFilePath, err := filepath.Abs(*f)
+func fileExists(f string) (bool, string) {
+	zipFilePath, err := filepath.Abs(f)
 	if err != nil {
 		return false, ""
 	}
@@ -88,10 +88,7 @@ func fileExists(f *string) (bool, string) {
 	return true, zipFilePath
 }
 
-func printError(msg string, a ...interface{}) {
-	color.Red(msg, a)
-}
-
+// https://golangcode.com/unzip-files-in-go/
 // Unzip will decompress a zip archive, moving all files and folders
 // within the zip file (parameter 1) to an output directory (parameter 2).
 func unzipFile(src string, dest string) ([]string, error) {
@@ -154,6 +151,7 @@ func unzipFile(src string, dest string) ([]string, error) {
 	return filenames, nil
 }
 
+// https://www.socketloop.com/tutorials/golang-how-to-tell-if-a-file-is-compressed-either-gzip-or-zip
 func isZipFile(f string) (bool, error) {
 	zf, err := os.Open(f)
 	if err != nil {
@@ -176,4 +174,51 @@ func isZipFile(f string) (bool, error) {
 	default:
 		return false, nil
 	}
+}
+
+func displayFileName(n string) string {
+	nLen := len(n)
+	if nLen < 40 {
+		paddingChar := " "
+		padding := paddingChar
+		for ; len(padding)+nLen < 39; {
+			padding += paddingChar
+		}
+
+		return n + padding
+	}
+
+	return n[0:39]
+}
+
+func printError(msg string, a ...interface{}) {
+	color.Red(msg, a)
+}
+
+func printDot() {
+	fmt.Printf(".")
+}
+
+func printRedDot() {
+	fmt.Printf(color.New(color.FgHiRed).Sprint("."))
+}
+
+func printCheckMark() {
+	fmt.Printf(color.New(color.FgHiGreen, color.Bold).Sprintf(" %c", CheckMark))
+}
+
+func printXMark(msg string, a ...interface{}) {
+	fmt.Printf(color.New(color.BgHiRed, color.FgHiWhite).Sprintf(msg, a))
+	fmt.Printf(color.New(color.FgHiRed).Sprintf(" %c", XMark))
+}
+
+var boldf = color.New(color.Bold).SprintfFunc()
+var bold = color.New(color.Bold).SprintFunc()
+
+func cleanup(mgr *ConverterManager) {
+	if mgr == nil {
+		return
+	}
+
+	_ = os.RemoveAll(mgr.InPath)
 }

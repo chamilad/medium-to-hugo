@@ -60,7 +60,7 @@ func (p *Post) PruneMediumSpecifics() {
 func (p *Post) NewImage(dom *goquery.Selection, i int) (*Image, error) {
 	imgSrc, exists := dom.Attr("src")
 	if !exists {
-		fmt.Print("warning img no src\n")
+		//fmt.Print("warning img no src\n")
 		return nil, errors.New("invalid img def, no src found")
 	}
 
@@ -71,12 +71,12 @@ func (p *Post) NewImage(dom *goquery.Selection, i int) (*Image, error) {
 
 	fileNamePrefix, err := p.GetFileNamePrefix()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error while reading imgFilename: %s", p.MdFilename)
+		//fmt.Fprintf(os.Stderr, "error while reading imgFilename: %s", p.MdFilename)
 		return nil, err
 	}
 
 	imgFilename := fmt.Sprintf("%s_%d%s", fileNamePrefix, i, ext)
-	fmt.Fprintf(os.Stderr, "image name: %s", imgFilename)
+	//fmt.Fprintf(os.Stderr, "image name: %s", imgFilename)
 
 	img := &Image{MediumURL: imgSrc, FileName: imgFilename}
 
@@ -119,9 +119,7 @@ func (p *Post) FixSelfLinks() {
 	mediumBaseUrl := fmt.Sprintf("%s/@%s", "https://medium.com", mediumUsername)
 
 	anchors := p.DOM.Find(".markup--anchor")
-	if anchors.Length() == 0 {
-		fmt.Fprintf(os.Stderr, "no anchors found to replace")
-	} else {
+	if anchors.Length() != 0 {
 		anchors.Each(func(i int, aDomElement *goquery.Selection) {
 			original, has := aDomElement.Attr("href")
 			if !has {
@@ -130,7 +128,7 @@ func (p *Post) FixSelfLinks() {
 
 			if strings.Contains(original, mediumBaseUrl) {
 				replaced := strings.TrimPrefix(original, mediumBaseUrl)
-				fmt.Fprintf(os.Stderr, "self link found: %s (%s) => %s\n\n\n", original, aDomElement.Text(), replaced)
+				//fmt.Fprintf(os.Stderr, "self link found: %s (%s) => %s\n\n\n", original, aDomElement.Text(), replaced)
 				aDomElement.SetAttr("href", replaced)
 				aDomElement.SetAttr("data-href", replaced)
 			}
@@ -140,7 +138,7 @@ func (p *Post) FixSelfLinks() {
 
 func (p *Post) PopulateTags() error {
 	if p.Draft {
-		_, _ = fmt.Fprintf(os.Stderr, "not getting tags for draft: %s\n", p.Title)
+		//_, _ = fmt.Fprintf(os.Stderr, "not getting tags for draft: %s\n", p.Title)
 		return nil
 	}
 
@@ -157,7 +155,11 @@ func (p *Post) PopulateTags() error {
 	}
 
 	doc, err := goquery.NewDocumentFromReader(res.Body)
-	res.Body.Close()
+	if err != nil {
+		return err
+	}
+
+	err = res.Body.Close()
 	if err != nil {
 		return err
 	}
@@ -170,7 +172,7 @@ func (p *Post) PopulateTags() error {
 }
 
 func (p *Post) GenerateMarkdown() error {
-	fmt.Printf("Generating markdown %s => %s\n", p.HTMLFileName, p.MdFilename)
+	//fmt.Printf("Generating markdown %s => %s\n", p.HTMLFileName, p.MdFilename)
 
 	body := ""
 	p.DOM.Find("div.section-inner").Each(func(i int, s *goquery.Selection) {
@@ -178,6 +180,7 @@ func (p *Post) GenerateMarkdown() error {
 		body += html2md.Convert(strings.TrimSpace(h))
 	})
 
+	// nbsp
 	body = strings.Map(func(r rune) rune {
 		if r == '\u00A0' {
 			return ' '
@@ -188,9 +191,10 @@ func (p *Post) GenerateMarkdown() error {
 
 	p.Body = strings.TrimSpace(body)
 
-	if len(p.Body) == 0 {
-		return errors.New("empty markdown generated")
-	}
+	// empty body shouldn't be an issue
+	//if len(p.Body) == 0 {
+	//	return errors.New("empty markdown generated")
+	//}
 
 	return nil
 }
