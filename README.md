@@ -1,6 +1,14 @@
 # Medium to Hugo Converter
 > This is a modified fork of [bgadrian/medium-to-hugo](https://github.com/bgadrian/medium-to-hugo).
+
 Reads a given Medium export archive, and converts the contents of the `posts` directory into Hugo compatible Markdown files.
+
+1. [Features](#features)
+    1. [Upstream Features](#upstream-features)
+    2. [Fork Specific Features](#fork-specific-features) 
+2. [Usage](#usage)
+3. [Building](#building)
+4. [Contributing](#contributing)
 
 ![m2h in action](img/execution.png)
 
@@ -52,9 +60,14 @@ Following are the fork specific features. Most of these are personal preferences
 ##### Final output
 ![markdown](img/output-list.png) 
 
-### Build / Contribute
+## Building
 You need Bash, Go 1.11+
+1. Clone this repository, and checkout a specific commit if wanted to. 
+2. Use the `Makefile` to build. If at version 2.0 tag or later, use `make release` to cross compile binaries for `linux`, `windows`, and `darwin`. For previous versions use `make buildall`.
+ 
 
-See Issues for a list of TODOs.
+## Contributing
+Submit issues, PRs using Github. Please use the [upstream project](https://github.com/bgadrian/medium-to-hugo) if your requirements seem to match it. This fork has changed with my personal opinions. If you think your improvement matches the upstream project more than this, please contribute there. 
 
-Untested in Windows and Mac
+
+> Untested in Windows and Mac
