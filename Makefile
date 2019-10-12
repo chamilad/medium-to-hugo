@@ -23,4 +23,4 @@ release: clean
 clean:
 	go clean
 	rm -rf ${TARGET}
-	go get -d ./
+# 	go get -d ./

@@ -5,6 +5,11 @@
 //
 package main
 
+// TODO:
+//  1. check what happens to gist and other embeds
+//  2. check the effect of links inside inline code
+//  3. check the effect of quote blocks
+
 import (
 	"flag"
 	"fmt"
@@ -18,11 +23,13 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/chamilad/html-to-markdown"
 )
 
 const (
 	XMark                 = '\u2718' // unicode char to use for failures
 	CheckMark             = '\u2713' // unicode char to use for success
+	DotMark               = '\u2022' // unicode bullet chr
 	HContentType          = "post"   // Hugo Content Type, only post is supported
 	HImagesDirName        = "img"    // directory where the images will be downloaded to
 	MarkdownFileExtension = ".md"    // file extension of the Markdown files
@@ -68,6 +75,7 @@ type ConverterManager struct {
 
 	// Ignore empty articles
 	IgnoreEmpty bool
+	MDConverter *md.Converter
 }
 
 func main() {
@@ -108,7 +116,7 @@ func main() {
 		fmt.Printf("Medium username: \t%s\n", bold(username))
 	}
 
-	fmt.Print("Ignore empty articles: \t",)
+	fmt.Print("Ignore empty articles: \t", )
 	if mgr.IgnoreEmpty {
 		printCheckMark()
 	} else {
@@ -219,7 +227,7 @@ func main() {
 		printDot()
 
 		// all done, generate the markdown
-		err = post.GenerateMarkdown()
+		err = post.GenerateMarkdown(mgr.MDConverter)
 		if err != nil {
 			printXError("generating md => %s", err)
 			errorList = append(errorList, f.Name())
@@ -320,6 +328,13 @@ func newConverterManager(archive string, ignoreEmpty bool) (*ConverterManager, e
 		return nil, fmt.Errorf("couldn't find posts content in the medium extract archive: %s", oIn)
 	}
 
+	// create a markdown converter
+	op := md.Options{
+		CodeBlockStyle: "fenced",
+	}
+	converter := md.NewConverter("", true, &op)
+	converter.AddRules(convertGHGists)
+
 	mgr := &ConverterManager{
 		InPath:          oIn,
 		MediumPostsPath: mediumPosts,
@@ -327,6 +342,7 @@ func newConverterManager(archive string, ignoreEmpty bool) (*ConverterManager, e
 		PostsPath:       postsPath,
 		ImagesPath:      imagesPath,
 		IgnoreEmpty:     ignoreEmpty,
+		MDConverter:     converter,
 	}
 
 	return mgr, nil

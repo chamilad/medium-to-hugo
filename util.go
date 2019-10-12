@@ -2,11 +2,14 @@ package main
 
 import (
 	"archive/zip"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"github.com/chamilad/html-to-markdown"
 	"github.com/fatih/color"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -215,12 +218,12 @@ func printError(msg string, a ...interface{}) {
 
 // printDot prints a dot char to the stdout
 func printDot() {
-	fmt.Printf(".")
+	fmt.Printf("%c", DotMark)
 }
 
 // printRedDot prints a red dot to the stdout
 func printRedDot() {
-	fmt.Printf(color.New(color.FgHiRed).Sprint("."))
+	fmt.Printf(color.New(color.FgHiRed).Sprint("%c", DotMark))
 }
 
 // printCheckMark prints a unicode check mark to the stdout in green color
@@ -244,3 +247,119 @@ func printXError(msg string, a ...interface{}) {
 // functions for bolding text
 var boldf = color.New(color.Bold).SprintfFunc()
 var bold = color.New(color.Bold).SprintFunc()
+
+// converter rules ============================================================
+
+// converter rule to convert github gists to markdown code blocks
+var convertGHGists = md.Rule{
+	//<figure name="3f51" id="3f51" class="graf graf--figure graf--iframe graf-after--p"><script src="https://gist.github.com/chamilad/63cfa08c052e795c8e95bb7b43643f6a.js"></script></figure>
+	Filter: []string{"script"},
+	Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+		codeContentType := ""
+		codeContent := ""
+
+		// check the src attribute
+		src, exists := selec.Attr("src")
+		if !exists {
+			// if src cannot be found, nothing can be done
+			printRedDot()
+			return nil
+		}
+
+		// if src exists, check if it is a gist
+		if !strings.HasPrefix(src, "https://gist.github") {
+			return nil
+		}
+
+		// remove the js extension from the path
+		// https://gist.github.com/chamilad/63cfa08c052e795c8e95bb7b43643f6a.js
+		src = src[0 : len(src)-len(filepath.Ext(src))]
+		//fmt.Printf("gist source path: %s", src)
+
+		// get the content type from the html content
+		skipTLS := strings.ToLower(os.Getenv("ALLOW_INSECURE")) == "true"
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: skipTLS},
+		}
+
+		client := &http.Client{Transport: tr}
+
+		res, err := client.Get(src)
+		if err != nil {
+			printRedDot()
+			return nil
+		}
+
+		htmlDoc, err := goquery.NewDocumentFromReader(res.Body)
+		if err != nil {
+			printRedDot()
+			return nil
+		}
+
+		err = res.Body.Close()
+		if err != nil {
+			printRedDot()
+			return nil
+		}
+
+		//<meta
+		//class="js-ga-set"
+		//name="dimension7"
+		//content="xml"
+		//>
+		htmlDoc.Find("meta[name='dimension7']").Each(func(i int, selection *goquery.Selection) {
+			ct, exists := selection.Attr("content")
+			if !exists {
+				printRedDot()
+				return
+			}
+
+			// certain content types don't translate well to markdown
+			if ct == "unknown" {
+				codeContentType = ""
+			} else if ct == "shell" {
+				codeContentType = "bash"
+			} else {
+				codeContentType = ct
+			}
+		}) // content type reading done
+
+		// get raw content
+		rawsrc := fmt.Sprintf(
+			"%s/raw",
+			strings.Replace(src, "gist.github.com", "gist.githubusercontent.com", 1))
+
+		rawres, err := client.Get(rawsrc)
+		if err != nil {
+			printRedDot()
+			return nil
+		}
+
+		resBody, err := ioutil.ReadAll(rawres.Body)
+		if err != nil {
+			printRedDot()
+			return nil
+		}
+
+		err = rawres.Body.Close()
+		if err != nil {
+			printRedDot()
+			return nil
+		}
+
+		codeContent = string(resBody) // reading raw content done
+
+		// if no raw content is read, return without rendering
+		if len(codeContent) == 0 {
+			return nil
+		}
+
+		// otherwise render a markdown code block with content type
+		codeblock := fmt.Sprintf("\n```%s\n%s\n```\n", codeContentType, codeContent)
+
+		printDot()
+		return md.String(codeblock)
+	},
+
+	AdvancedReplacement: nil,
+}

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
-	"github.com/lunny/html2md"
+	"github.com/chamilad/html-to-markdown"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -186,21 +186,8 @@ func (p *Post) PopulateTags() error {
 
 // GenerateMarkdown generates the markdown text from HTML for a given Post.
 // The resulting markdown text is assign to the Body variable
-func (p *Post) GenerateMarkdown() error {
-	body := ""
-	p.DOM.Find("div.section-inner").Each(func(i int, s *goquery.Selection) {
-		h, _ := s.Html()
-		body += html2md.Convert(strings.TrimSpace(h))
-	})
-
-	// nbsp
-	body = strings.Map(func(r rune) rune {
-		if r == '\u00A0' {
-			return ' '
-		}
-
-		return r
-	}, body)
+func (p *Post) GenerateMarkdown(conv *md.Converter) error {
+	body := conv.Convert(p.DOM.Selection)
 
 	p.Body = strings.TrimSpace(body)
 
