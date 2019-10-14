@@ -333,7 +333,9 @@ func newConverterManager(archive string, ignoreEmpty bool) (*ConverterManager, e
 		CodeBlockStyle: "fenced",
 	}
 	converter := md.NewConverter("", true, &op)
-	converter.AddRules(convertGHGists)
+	// don't remove br tags
+	converter.Keep("br")
+	converter.AddRules(convertGHGists, convertBreaks, convertPre)
 
 	mgr := &ConverterManager{
 		InPath:          oIn,

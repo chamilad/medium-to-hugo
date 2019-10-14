@@ -355,11 +355,42 @@ var convertGHGists = md.Rule{
 		}
 
 		// otherwise render a markdown code block with content type
-		codeblock := fmt.Sprintf("\n```%s\n%s\n```\n", codeContentType, codeContent)
+		codeblock := fmt.Sprintf("\n\n%s%s\n%s\n%s\n\n", options.Fence, codeContentType, codeContent, options.Fence)
 
 		printDot()
 		return md.String(codeblock)
 	},
 
+	AdvancedReplacement: nil,
+}
+
+// convert remaining br tags to new line chars
+var convertBreaks = md.Rule{
+	Filter: []string{"br"},
+	Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+		return md.String("\n")
+	},
+	AdvancedReplacement: nil,
+}
+
+// convert correctly any preformatted sections to unescaped multiline code blocks
+var convertPre = md.Rule{
+	Filter: []string{"pre"},
+	Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+		codeContent := ""
+		selec.Contents().Each(func(i int, selection *goquery.Selection) {
+			name := goquery.NodeName(selection)
+
+			if name == "br" {
+				codeContent += "\n"
+			} else {
+				codeContent += selection.Text()
+			}
+		})
+
+		// TODO: consecutive pre tags should be collected together
+
+		return md.String(fmt.Sprintf("\n\n%s\n%s\n%s\n\n", options.Fence, codeContent, options.Fence))
+	},
 	AdvancedReplacement: nil,
 }
