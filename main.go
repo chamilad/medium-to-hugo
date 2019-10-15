@@ -6,9 +6,7 @@
 package main
 
 // TODO:
-//  1. check what happens to gist and other embeds
-//  2. check the effect of links inside inline code
-//  3. check the effect of quote blocks
+//  1. process embeds other than gists
 
 import (
 	"flag"

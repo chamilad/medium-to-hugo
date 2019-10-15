@@ -1,7 +1,7 @@
 # Medium to Hugo Converter
 > This is a modified fork of [bgadrian/medium-to-hugo](https://github.com/bgadrian/medium-to-hugo).
 
-Reads a given Medium export archive, and converts the contents of the `posts` directory into Hugo compatible Markdown files.
+Reads a given Medium export archive, and converts the HTML contents of the `posts` directory into Hugo compatible Markdown files.
 
 1. [Features](#features)
     1. [Upstream Features](#upstream-features)
@@ -10,30 +10,34 @@ Reads a given Medium export archive, and converts the contents of the `posts` di
 3. [Building](#building)
 4. [Contributing](#contributing)
 
-![m2h in action](img/execution.png)
+![m2h in action](img/execution.gif)
 
 ## Features
+Most of the functionality from upstream are preserved, however the underlying details are somewhat different.
+
 ### Upstream features
 The features preserved from the upstream are,
-* transform HTML posts to markdown
 * SEO friendly (keeps the old URL as an **alias**)
-* keeps all the metadata and adds most Hugo front Matter, including the alias with the old URL
-* even if one article fails it keeps going
-* marks the **drafts** as "draft_"
+* Populates Hugo FrontMatter with relevant details
+* Converts drafts and marks them specifically
 * Fetch the article **TAGS** (which are not included in the Medium exporter), compatible with Hugo Related feature
 * Fetch all the **Images** 
-* stories are ordered by date (`year-month-day_slug`)
-* custom `.Params`: image, images, slug, subtitle
-* minimal HTML cleanup (removed empty URLs, duplicate title and so on)
-* adds `#layout...` suffix to every image so they can be styles accordingly from plain CSS with exactly same style as on Medium.
+* Stories are ordered by date (`year-month-day_slug`)
+* Custom `.Params`: image, images, slug, subtitle
+* Minimal HTML cleanup (removed empty URLs, duplicate title and so on)
+* Adds `#layout...` suffix to every image so they can be styles accordingly from plain CSS with exactly same style as on Medium.
 
 ### Fork specific features
-Following are the fork specific features. Most of these are personal preferences that might not suite all.
+Following are the fork specific features. 
+
 * Converts and writes all Markdown in the same directory, unlike the upstream project which creates a directory for each post
 * Downloads images into one directory instead of a directory inside the post-specific directories
 * Does not ignore comments
 * Will ignore empty articles based on a flag (`-e`)
 * Any self-references (links that point to articles by the same author) are fixed so that after conversion they point to the converted site
+* Read and convert Github Gist embeds into Markdown code blocks with relevant syntax highlighting
+* Convert preformatted code blocks correctly by parsing embedded line break tags
+* Corrects Medium export glitch where an empty line within a preformatted block generates two preformatted blocks
 
 
 ## Usage
@@ -71,3 +75,9 @@ Submit issues, PRs using Github. Please use the [upstream project](https://githu
 
 
 > Untested in Windows and Mac
+
+## Similar Projects
+1. [bgadrian/medium-to-hugo](https://github.com/bgadrian/medium-to-hugo) - The upstream project
+2. [gautamdhameja/medium-2-md](https://github.com/gautamdhameja/medium-2-md) 
+3. [The first Gist](https://gist.github.com/clipperhouse/010d4666892807afee16ba7711b41401) - The Gist that was used as the inspiration by the upstream project
+
