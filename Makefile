@@ -1,7 +1,7 @@
 # Makefile
 BINARY="m2h"
 TARGET="build"
-VERSION="v0.2"
+VERSION="v0.3"
 
 export GO111MODULE=on
 LDFLAGS=-ldflags "-extldflags '-static' -s -w"
