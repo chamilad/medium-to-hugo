@@ -374,23 +374,60 @@ var convertBreaks = md.Rule{
 }
 
 // convert correctly any preformatted sections to unescaped multiline code blocks
+// this will also read any pre blocks found as consecutive siblings and collect them into one markdown code
+// block.
 var convertPre = md.Rule{
 	Filter: []string{"pre"},
 	Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+		// if this pre tag is already read, skip
+		// this happens if pre blocks are found as siblings, the previous pre block processing would collect
+		// all the next consecutive pre blocks into one code block and mark them as collected witb this
+		// class.
+		if selec.HasClass("m2h-collected") {
+			return md.String("")
+		}
+
+		// read code for current pre block
 		codeContent := ""
-		selec.Contents().Each(func(i int, selection *goquery.Selection) {
-			name := goquery.NodeName(selection)
+		readCodeContent(selec, &codeContent)
 
-			if name == "br" {
-				codeContent += "\n"
-			} else {
-				codeContent += selection.Text()
+		// check if next element is a pre block, and read content if so
+		nextSelec := selec.Next()
+		for ; ; {
+			if goquery.NodeName(nextSelec) != "pre" {
+				break
 			}
-		})
 
-		// TODO: consecutive pre tags should be collected together
+			// consecutive blocks usually mean an empty line in medium
+			codeContent += "\n\n"
+
+			// append content to single block
+			readCodeContent(nextSelec, &codeContent)
+
+			// mark pre block as collected
+			nextSelec.AddClass("m2h-collected")
+
+			// check next tag
+			nextSelec = nextSelec.Next()
+		}
 
 		return md.String(fmt.Sprintf("\n\n%s\n%s\n%s\n\n", options.Fence, codeContent, options.Fence))
 	},
 	AdvancedReplacement: nil,
+}
+
+// readCodeContent reads the text of a given Selection, honouring the br tags found within the text. This is
+// intended to be used to read content within pre blocks as the default rule in the converter library will
+// ignore the br tags
+// The read text will be appended to the string provided by the pointer
+func readCodeContent(s *goquery.Selection, c *string) {
+	s.Contents().Each(func(i int, selection *goquery.Selection) {
+		name := goquery.NodeName(selection)
+
+		if name == "br" {
+			*c += "\n"
+		} else {
+			*c += selection.Text()
+		}
+	})
 }

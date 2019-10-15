@@ -227,12 +227,9 @@ func main() {
 		printDot()
 
 		// all done, generate the markdown
-		err = post.GenerateMarkdown(mgr.MDConverter)
-		if err != nil {
-			printXError("generating md => %s", err)
-			errorList = append(errorList, f.Name())
-			continue
-		}
+		body := mgr.MDConverter.Convert(post.DOM.Selection)
+		post.Body = strings.TrimSpace(body)
+
 		printDot()
 
 		written, err := mgr.Write(post)

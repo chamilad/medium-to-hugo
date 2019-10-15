@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
-	"github.com/chamilad/html-to-markdown"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -180,21 +179,6 @@ func (p *Post) PopulateTags() error {
 	doc.Find("ul>li>a[href^='/tag']").Each(func(i int, selection *goquery.Selection) {
 		p.Tags = append(p.Tags, selection.Text())
 	})
-
-	return nil
-}
-
-// GenerateMarkdown generates the markdown text from HTML for a given Post.
-// The resulting markdown text is assign to the Body variable
-func (p *Post) GenerateMarkdown(conv *md.Converter) error {
-	body := conv.Convert(p.DOM.Selection)
-
-	p.Body = strings.TrimSpace(body)
-
-	// empty body shouldn't be an issue
-	//if len(p.Body) == 0 {
-	//	return errors.New("empty markdown generated")
-	//}
 
 	return nil
 }
