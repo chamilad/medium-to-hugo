@@ -2,8 +2,8 @@ github.com/PuerkitoBio/goquery v1.5.0 h1:uGvmFXOA73IKluu/F84Xd1tt/z07GYm8X49XKHP
 github.com/PuerkitoBio/goquery v1.5.0/go.mod h1:qD2PgZ9lccMbQlc7eEOjaeRlFQON7xY8kdmcsrnKqMg=
 github.com/andybalholm/cascadia v1.0.0 h1:hOCXnnZ5A+3eVDX8pvgl4kofXv2ELss0bKcqRySc45o=
 github.com/andybalholm/cascadia v1.0.0/go.mod h1:GsXiBklL0woXo1j/WYWtSYYC4ouU9PqHO0sqidkEA4Y=
-github.com/chamilad/html-to-markdown v0.0.0-20191014094337-979a0566c7ba h1:oTYyy8EOrJccLV2FsD5+4S5KXRH2q6yK/JI+qsRay2M=
-github.com/chamilad/html-to-markdown v0.0.0-20191014094337-979a0566c7ba/go.mod h1:06u/jRnipG7qlJLZCVY0enpd3qExQ82mzBqDwzjwMfs=
+github.com/chamilad/html-to-markdown v0.1.0 h1:GQtZjC/alWCFoOH9lNmmbhwNWQaZscSASAtkEWWZ6K0=
+github.com/chamilad/html-to-markdown v0.1.0/go.mod h1:06u/jRnipG7qlJLZCVY0enpd3qExQ82mzBqDwzjwMfs=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/google/uuid v1.1.1 h1:Gkbcsh/GbpXz7lPftLA3P6TYMwjCLYm83jiFQZF/3gY=
