@@ -51,7 +51,13 @@ func (p *Post) PruneMediumSpecifics() {
 		selection.Remove()
 	})
 
-	p.DOM.Find("h1").Each(func(i int, selection *goquery.Selection) {
+	// remove redundant title
+	p.DOM.Find("h1.p-name").Each(func(i int, selection *goquery.Selection) {
+		selection.Remove()
+	})
+
+	// remove redundant sub	title
+	p.DOM.Find("section.p-summary").Each(func(i int, selection *goquery.Selection) {
 		selection.Remove()
 	})
 }
