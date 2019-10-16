@@ -431,3 +431,19 @@ func readCodeContent(s *goquery.Selection, c *string) {
 		}
 	})
 }
+
+// convert slideshare links to proper iframe embeds
+var convertSlideShare = md.Rule{
+	// <figure name="9af0" id="9af0" class="graf graf--figure graf--iframe graf-after--blockqu    ote"><iframe src="https://www.slideshare.net/slideshow/embed_code/key/8br68UFQtb7qpF" width="600" height="500" frameborder="0" scrolling="no"></iframe></figure>
+	Filter: []string{"iframe"},
+	Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+		src, exists := selec.Attr("src")
+		if !exists || !strings.Contains(src, "slideshare.net") {
+			return nil
+		}
+
+		return md.String(fmt.Sprintf("<iframe src=\"%s\" width=\"595\" height=\"485\" frameborder=\"0\" marginwidth=\"0\" marginheight=\"0\" scrolling=\"no\" style=\"border:1px solid #CCC; border-width:1px; margin-bottom:5px; \" allowfullscreen> </iframe>\n", src))
+
+	},
+	AdvancedReplacement: nil,
+}

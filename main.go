@@ -330,7 +330,7 @@ func newConverterManager(archive string, ignoreEmpty bool) (*ConverterManager, e
 	converter := md.NewConverter("", true, &op)
 	// don't remove br tags
 	converter.Keep("br")
-	converter.AddRules(convertGHGists, convertBreaks, convertPre)
+	converter.AddRules(convertGHGists, convertBreaks, convertPre, convertSlideShare)
 
 	mgr := &ConverterManager{
 		InPath:          oIn,

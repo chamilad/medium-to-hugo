@@ -38,6 +38,9 @@ Following are the fork specific features.
 * Read and convert Github Gist embeds into Markdown code blocks with relevant syntax highlighting
 * Convert preformatted code blocks correctly by parsing embedded line break tags
 * Corrects Medium export glitch where an empty line within a preformatted block generates two preformatted blocks
+* Convert Slideshare Medium embeds to HTML embeds within Markdown.
+
+> Hugo shortcodes are not used as a way to embed external resources like Gists to keep the Markdown generation reusable across different static site generators.
 
 
 ## Usage
