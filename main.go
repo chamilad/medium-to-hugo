@@ -224,8 +224,13 @@ func main() {
 		mgr.ProcessImages(post)
 		printDot()
 
+		// Change text for canonical link display on the bottom of the post
+		post.DOM.Find("a.p-canonical").Each(func(i int, selection *goquery.Selection) {
+			selection.SetText("Medium Link")
+		})
+
 		// all done, generate the markdown
-		body := mgr.MDConverter.Convert(post.DOM.Selection)
+		body := mgr.MDConverter.Convert(post.DOM.Find("div.section-inner"))
 		post.Body = strings.TrimSpace(body)
 
 		printDot()
@@ -330,7 +335,7 @@ func newConverterManager(archive string, ignoreEmpty bool) (*ConverterManager, e
 	converter := md.NewConverter("", true, &op)
 	// don't remove br tags
 	converter.Keep("br")
-	converter.AddRules(convertGHGists, convertBreaks, convertPre, convertSlideShare)
+	converter.AddRules(ruleOverrides...)
 
 	mgr := &ConverterManager{
 		InPath:          oIn,
