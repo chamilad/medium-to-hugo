@@ -219,15 +219,63 @@ var ruleOverrides = []md.Rule{
 
 	// avoid `**text**` since it's not converted properly during md to html in hugo
 	{
-		Filter: []string{"strong"},
+		Filter: []string{"strong", "b"},
 		Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
-			// if the parent is <code> do not put ** string
-			if goquery.NodeName(selec.Parent()) == "code" {
-				return md.String(selec.Text())
+			if goquery.NodeName(selec.Parent()) != "code" {
+				// eval other rules
+				return nil
 			}
 
-			// eval other rules
-			return nil
+			// if the parent is <code> do not put ** string
+			return md.String(selec.Text())
+		},
+		AdvancedReplacement: nil,
+	},
+
+	// render figcaption correctly
+	{
+		Filter: []string{"img"},
+		Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+			// check if img and figcaption elements are present
+			// figure
+			//   > div.aspectRatioPlaceholder
+			//     > img
+			//   > figcaption
+
+			// check if parent is a div.aspectRatioPlaceholder
+			parent := selec.Parent()
+			if goquery.NodeName(parent) != "div" {
+				return nil
+			}
+
+			if !parent.HasClass("aspectRatioPlaceholder") {
+				return nil
+			}
+
+			// check if parent has a sibling called figcaption
+			parParent := parent.Parent()
+			if goquery.NodeName(parParent) != "figure" {
+				return nil
+			}
+
+			figcaption := parParent.Find("figcaption")
+			if figcaption.Length() == 0 {
+				return nil
+			}
+
+			imgSrc, _ := selec.Attr("src")
+			fHtml := fmt.Sprintf("<figure><img src=\"%s\"><figcaption>%s</figcaption></figure>", imgSrc, figcaption.Text())
+
+			return md.String(fHtml)
+		},
+		AdvancedReplacement: nil,
+	},
+
+	// remove figcaption
+	{
+		Filter: []string{"figcaption"},
+		Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+			return md.String("")
 		},
 		AdvancedReplacement: nil,
 	},
