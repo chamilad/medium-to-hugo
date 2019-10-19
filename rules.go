@@ -279,6 +279,28 @@ var ruleOverrides = []md.Rule{
 		},
 		AdvancedReplacement: nil,
 	},
+
+	// handle tweets
+	// have to use hugo shortcodes here since there is no easy way to generate a twitter embed code
+	{
+		Filter: []string{"blockquote"},
+		Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+			// check if a tweet
+			if !selec.HasClass("twitter-tweet") {
+				return nil
+			}
+
+			t, exists := selec.Find("a").Attr("href")
+			if !exists {
+				return nil
+			}
+
+			splits := strings.Split(t, "/")
+			st := splits[len(splits)-1]
+			return md.String(fmt.Sprintf("{{< tweet %s >}}", st))
+		},
+		AdvancedReplacement: nil,
+	},
 }
 
 // readCodeContent reads the text of a given Selection, honouring the br tags found within the text. This is
