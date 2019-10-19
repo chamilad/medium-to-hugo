@@ -301,6 +301,20 @@ var ruleOverrides = []md.Rule{
 		},
 		AdvancedReplacement: nil,
 	},
+
+	// hrefed code
+	{
+		Filter: []string{"code"},
+		Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+			a := selec.Find("a")
+			if a.Length() == 0 {
+				return nil
+			}
+
+			return md.String(fmt.Sprintf("[`%s`](%s)", a.Text(), a.AttrOr("href", "")))
+		},
+		AdvancedReplacement: nil,
+	},
 }
 
 // readCodeContent reads the text of a given Selection, honouring the br tags found within the text. This is
