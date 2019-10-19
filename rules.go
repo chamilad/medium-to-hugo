@@ -16,7 +16,9 @@ import (
 var ruleOverrides = []md.Rule{
 	// converter rule to convert github gists to markdown code blocks
 	{
-		//<figure name="3f51" id="3f51" class="graf graf--figure graf--iframe graf-after--p"><script src="https://gist.github.com/chamilad/63cfa08c052e795c8e95bb7b43643f6a.js"></script></figure>
+		//<figure name="3f51" id="3f51" class="graf graf--figure graf--iframe graf-after--p">
+		// <script src="https://gist.github.com/chamilad/63cfa08c052e795c8e95bb7b43643f6a.js"></script>
+		// </figure>
 		Filter: []string{"script"},
 		Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
 			codeContentType := ""
@@ -119,7 +121,12 @@ var ruleOverrides = []md.Rule{
 			}
 
 			// otherwise render a markdown code block with content type
-			codeblock := fmt.Sprintf("\n\n%s%s\n%s\n%s\n\n", options.Fence, codeContentType, codeContent, options.Fence)
+			codeblock := fmt.Sprintf(
+				"\n\n%s%s\n%s\n%s\n\n",
+				options.Fence,
+				codeContentType,
+				codeContent,
+				options.Fence)
 
 			printDot()
 			return md.String(codeblock)
@@ -182,7 +189,10 @@ var ruleOverrides = []md.Rule{
 
 	// convert slideshare links to proper iframe embeds
 	{
-		// <figure name="9af0" id="9af0" class="graf graf--figure graf--iframe graf-after--blockqu    ote"><iframe src="https://www.slideshare.net/slideshow/embed_code/key/8br68UFQtb7qpF" width="600" height="500" frameborder="0" scrolling="no"></iframe></figure>
+		// <figure name="9af0" id="9af0" class="graf graf--figure graf--iframe graf-after--blockquote">
+		// <iframe src="https://www.slideshare.net/slideshow/embed_code/key/8br68UFQtb7qpF" width="600" height="500"
+		// frameborder="0" scrolling="no"></iframe>
+		// </figure>
 		Filter: []string{"iframe"},
 		Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
 			src, exists := selec.Attr("src")
@@ -190,7 +200,11 @@ var ruleOverrides = []md.Rule{
 				return nil
 			}
 
-			return md.String(fmt.Sprintf("<iframe src=\"%s\" width=\"595\" height=\"485\" frameborder=\"0\" marginwidth=\"0\" marginheight=\"0\" scrolling=\"no\" style=\"border:1px solid #CCC; border-width:1px; margin-bottom:5px; \" allowfullscreen> </iframe>\n", src))
+			return md.String(fmt.Sprintf(
+				"<iframe src=\"%s\" width=\"595\" height=\"485\" frameborder=\"0\" marginwidth=\"0\" "+
+					"marginheight=\"0\" scrolling=\"no\" style=\"border:1px solid #CCC; border-width:1px; "+
+					"margin-bottom:5px; \" allowfullscreen> </iframe>\n",
+				src))
 
 		},
 		AdvancedReplacement: nil,
@@ -264,14 +278,17 @@ var ruleOverrides = []md.Rule{
 			}
 
 			imgSrc, _ := selec.Attr("src")
-			fHtml := fmt.Sprintf("<figure><img src=\"%s\"><figcaption>%s</figcaption></figure>", imgSrc, figcaption.Text())
+			fHtml := fmt.Sprintf(
+				"<figure><img src=\"%s\"><figcaption>%s</figcaption></figure>\n",
+				imgSrc,
+				figcaption.Text())
 
 			return md.String(fHtml)
 		},
 		AdvancedReplacement: nil,
 	},
 
-	// remove figcaption
+	// remove figcaption since this will be processed during the img tag processing
 	{
 		Filter: []string{"figcaption"},
 		Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
@@ -314,6 +331,19 @@ var ruleOverrides = []md.Rule{
 			linkT := a.Text()
 			href := a.AttrOr("href", "")
 			return md.String(fmt.Sprintf("[`%s`](%s)", linkT, href))
+		},
+		AdvancedReplacement: nil,
+	},
+
+	// empty hrefs
+	{
+		Filter: []string{"a"},
+		Replacement: func(content string, selec *goquery.Selection, options *md.Options) *string {
+			if strings.TrimSpace(selec.Text()) != "" {
+				return nil
+			}
+
+			return md.String("")
 		},
 		AdvancedReplacement: nil,
 	},

@@ -5,9 +5,6 @@
 //
 package main
 
-// TODO:
-//  1. process embeds other than gists
-
 import (
 	"flag"
 	"fmt"

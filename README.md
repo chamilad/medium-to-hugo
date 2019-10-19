@@ -39,8 +39,12 @@ Following are the fork specific features.
 * Convert preformatted code blocks correctly by parsing embedded line break tags
 * Corrects Medium export glitch where an empty line within a preformatted block generates two preformatted blocks
 * Convert Slideshare Medium embeds to HTML embeds within Markdown.
+* Convert Twitter Medium embeds to Tweet embeds (using Hugo Shortcodes)
+* Handle edge cases like bolded inline code which doesn't get converted well during Hugo site generation
+* Render `figcaption` 
+* Customized footer from Medium export information
 
-> Hugo shortcodes are not used as a way to embed external resources like Gists to keep the Markdown generation reusable across different static site generators.
+> The use of Hugo shortcodes as a way to embed external resources like Gists were kept to a minimum to keep the Markdown generation reusable across different static site generators.
 
 
 ## Usage
