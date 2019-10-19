@@ -311,7 +311,9 @@ var ruleOverrides = []md.Rule{
 				return nil
 			}
 
-			return md.String(fmt.Sprintf("[`%s`](%s)", a.Text(), a.AttrOr("href", "")))
+			linkT := a.Text()
+			href := a.AttrOr("href", "")
+			return md.String(fmt.Sprintf("[`%s`](%s)", linkT, href))
 		},
 		AdvancedReplacement: nil,
 	},

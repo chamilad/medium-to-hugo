@@ -230,9 +230,19 @@ func main() {
 		})
 
 		// all done, generate the markdown
+		// 1. body
 		body := mgr.MDConverter.Convert(post.DOM.Find("div.section-inner"))
 		post.Body = strings.TrimSpace(body)
+		printDot()
 
+		// 2. footer
+		ftdom := post.DOM.Find("footer")
+		when := ftdom.Find("time.dt-published").Text()
+		who := ftdom.Find("a.p-author").Text()
+		mLink := ftdom.Find("a.p-canonical").AttrOr("href", "")
+
+		footer := fmt.Sprintf("\n\n* * *\nWritten on %s by %s.\n\nOriginally published on [Medium](%s)", when, who, mLink)
+		post.Body += footer
 		printDot()
 
 		written, err := mgr.Write(post)
